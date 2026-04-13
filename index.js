@@ -1,37 +1,72 @@
 const express = require('express');
 const { Pool } = require('pg');
-const app = express();
+const path = require('path');
 
-// Настройки подключения к базе (те же, что в docker-compose)
+const app = express();
+const port = 3000;
+
+// Настройка подключения к PostgreSQL
 const pool = new Pool({
   user: 'admin',
-  host: '127.0.0.1', // Прямой IPv4 адрес
+  host: 'localhost',
   database: 'security_demo',
-  password: 'password123',
-  port: 5433,
-  // Добавим этот параметр, чтобы избежать проблем с SSL
-  ssl: false 
+  password: 'admin',
+  port: 5433, // Твой проброшенный порт из Docker
 });
 
+// Раздача статических файлов из папки public
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// Уязвимый роут для поиска пользователя по ID
+/**
+ * Роут для получения пользователя
+ * Демонстрирует разницу между уязвимым и безопасным подходом
+ */
 app.get('/user/:id', async (req, res) => {
   const userId = req.params.id;
+  const isSafe = req.query.safe === 'true'; // Флаг из фронтенда
+
+  let queryText;
   
   try {
-    // Это классическая SQL-инъекция через конкатенацию строк!
-    const query = "SELECT * FROM users WHERE id = " + userId;
-    
-    console.log("Выполняю SQL запрос:", query); // Для наглядности в консоли
-    
-    const result = await pool.query(query);
-    res.json(result.rows);
+    if (isSafe) {
+      // ✅ БЕЗОПАСНЫЙ ПОДХОД: Параметризованный запрос
+      // Мы передаем данные ОТДЕЛЬНО от команды SQL
+      queryText = 'SELECT * FROM users WHERE id = $1';
+      const result = await pool.query(queryText, [userId]);
+      
+      res.json({
+        data: result.rows,
+        executedQuery: queryText,
+        protected: true
+      });
+    } else {
+      // ❌ УЯЗВИМЫЙ ПОДХОД: Конкатенация (склейка) строк
+      // Пользовательский ввод становится частью команды SQL
+      queryText = `SELECT * FROM users WHERE id = ${userId}`;
+      const result = await pool.query(queryText);
+      
+      res.json({
+        data: result.rows,
+        executedQuery: queryText,
+        protected: false
+      });
+    }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({
+      error: "Ошибка базы данных: " + err.message,
+      executedQuery: queryText,
+      protected: isSafe
+    });
   }
 });
 
-app.listen(3000, () => {
-  console.log('Сервер запущен на http://localhost:3000');
+// Запуск сервера
+app.listen(port, () => {
+  console.log(`
+  🚀 Симулятор запущен!
+  🔗 Адрес: http://localhost:${port}
+  🛡️ Режим защиты доступен через интерфейс
+  `);
 });

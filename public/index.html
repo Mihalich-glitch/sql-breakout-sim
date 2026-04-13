@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Injection Lab</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div style="text-align: right; margin-bottom: 10px;">
+        <button id="themeToggle" style="padding: 8px 15px; font-size: 14px;">🌙 Темная тема</button>
+    </div>
+
+    <h1>🛡️ Vulnerability Lab: SQL Injection</h1>
+    
+    <div class="lab-box">
+        <h3>Панель управления атакой</h3>
+        
+        <label class="status-label">
+            <input type="checkbox" id="safeMode"> Включить защиту (Prepared Statements)
+        </label>
+
+        <p>Введите ID или SQL-инъекцию:</p>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="userId" placeholder="Напр: 1 OR 1=1">
+            <button onclick="searchUser()">Выполнить запрос</button>
+        </div>
+
+        <h4>Отправленный SQL-запрос на сервер:</h4>
+        <div id="queryLog" class="log">Ожидание запроса...</div>
+
+        <h4>Ответ от базы данных (JSON):</h4>
+        <div id="resultBox" class="result">Здесь появятся данные...</div>
+    </div>
+
+    <script>
+        // Логика переключения темы
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+
+        themeToggle.addEventListener('click', () => {
+            if (body.hasAttribute('data-theme')) {
+                body.removeAttribute('data-theme');
+                themeToggle.innerText = '🌙 Темная тема';
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeToggle.innerText = '☀️ Светлая тема';
+            }
+        });
+
+        async function searchUser() {
+            const id = document.getElementById('userId').value;
+            const isSafe = document.getElementById('safeMode').checked;
+            
+            // Формируем URL с параметром защиты
+            const url = `/user/${encodeURIComponent(id)}?safe=${isSafe}`;
+            
+            try {
+                const res = await fetch(url);
+                const json = await res.json();
+
+                const logElement = document.getElementById('queryLog');
+                logElement.innerText = json.executedQuery || "Ошибка на стороне сервера";
+                
+                // Меняем цвет лога в зависимости от режима защиты
+                logElement.style.borderColor = json.protected ? "#4af626" : "#ff4444";
+                logElement.style.color = json.protected ? "#4af626" : "#ff4444";
+
+                document.getElementById('resultBox').innerText = JSON.stringify(json.data || json.error, null, 2);
+            } catch (e) {
+                document.getElementById('resultBox').innerText = "Ошибка сети или сервера";
+            }
+        }
+    </script>
+</body>
+</html>
