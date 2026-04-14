@@ -7,11 +7,11 @@ const port = 3000;
 
 // Настройка подключения к PostgreSQL
 const pool = new Pool({
-  user: 'admin',
-  host: 'localhost',
-  database: 'security_demo',
-  password: 'admin',
-  port: 5433, // Твой проброшенный порт из Docker
+  user: process.env.DB_USER || 'admin',
+  host: process.env.DB_HOST || 'localhost', // Берем из окружения или localhost
+  database: process.env.DB_NAME || 'security_demo',
+  password: process.env.DB_PASSWORD || 'admin',
+  port: process.env.DB_PORT || 5433,
 });
 
 // Раздача статических файлов из папки public
