@@ -62,6 +62,42 @@ app.get('/user/:id', async (req, res) => {
   }
 });
 
+// Получение всех комментариев
+app.get('/comments', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM comments ORDER BY id DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Добавление комментария (УЯЗВИМОЕ)
+app.post('/comments', express.json(), async (req, res) => {
+    const { author, content } = req.body;
+    try {
+        // Специально используем простую вставку без очистки HTML-тегов
+        await pool.query('INSERT INTO comments (author, content) VALUES ($1, $2)', [author, content]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/comments/clear', async (req, res) => {
+    console.log('Запрос на очистку базы получен'); // Для отладки в терминале
+    try {
+        // Удаляем записи с ID больше 1
+        const result = await pool.query('DELETE FROM comments WHERE id > 1');
+        
+        console.log(`Удалено строк: ${result.rowCount}`);
+        res.json({ success: true, deletedCount: result.rowCount });
+    } catch (err) {
+        console.error('Ошибка при выполнении запроса:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Запуск сервера
 app.listen(port, () => {
   console.log(`

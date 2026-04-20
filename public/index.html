@@ -3,52 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL Injection Lab</title>
+    <title>Vulnerability Lab: SQL & XSS</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="header-controls">
+        <nav class="tabs">
+            <button class="tab-btn active" onclick="showTab(event, 'sql')">💉 SQL Injection</button>
+            <button class="tab-btn" onclick="showTab(event, 'xss')">📜 XSS Attack</button>
+        </nav>
         <button id="themeToggle">🌙 Темная тема</button>
-        <label class="safe-mode-label">
-            <input type="checkbox" id="safeMode"> Включить защиту (Prepared Statements)
-        </label>
     </div>
 
-    <h1>🛡️ Vulnerability Lab: SQL Injection</h1>
-    
-    <div class="attack-presets">
-        <span class="presets-title">Быстрые атаки:</span>
-        <button class="preset-btn" onclick="applyPreset('1 OR 1=1', 'bypass')">Обход (OR)</button>
-        <button class="preset-btn" onclick="applyPreset('1 UNION SELECT 1, current_user, \'pass\', version()', 'info')">Версия БД</button>
-        <button class="preset-btn" onclick="applyPreset('1 UNION SELECT 1, table_name, \'a\', \'b\' FROM information_schema.tables WHERE table_schema = \'public\'', 'tables')">Список таблиц</button>
+    <div id="sql-tab" class="tab-content">
+        <h1>🛡️ SQL Injection Laboratory</h1>
+        
+        <div class="settings-row">
+            <label class="safe-mode-label">
+                <input type="checkbox" id="safeMode"> Включить защиту (Prepared Statements)
+            </label>
+        </div>
+
+        <div class="attack-presets">
+            <span class="presets-title">Пресеты:</span>
+            <button class="preset-btn" onclick="applySqlPreset('1 OR 1=1', 'bypass')">Обход (OR)</button>
+            <button class="preset-btn" onclick="applySqlPreset('1 UNION SELECT 1, current_user, \'pass\', version()', 'info')">Версия БД</button>
+            <button class="preset-btn" onclick="applySqlPreset('1 UNION SELECT 1, table_name, \'a\', \'b\' FROM information_schema.tables WHERE table_schema = \'public\'', 'tables')">Список таблиц</button>
+        </div>
+
+        <div id="sqlHint" class="hint-card" style="display: none;">
+            <strong>💡 Анализ SQL-атаки:</strong>
+            <p id="sqlHintContent"></p>
+        </div>
+
+        <div class="search-section">
+            <input type="text" id="userId" placeholder="Введите ID пользователя">
+            <button id="searchBtn" class="main-btn" onclick="searchUser()">⚡ Запустить SQL</button>
+        </div>
+
+        <div class="console-section">
+            <h4>Отправленный запрос:</h4>
+            <div id="queryLog" class="log">Ожидание действий...</div>
+            <h4>Результат:</h4>
+            <div id="resultBox" class="result">[]</div>
+        </div>
     </div>
 
-    <div id="hintDisplay" class="hint-card" style="display: none;">
-        <strong>💡 Анализ атаки:</strong>
-        <p id="hintContent"></p>
-    </div>
+    <div id="xss-tab" class="tab-content" style="display: none;">
+        <h1>☣️ Stored XSS Laboratory</h1>
+        
+        <div class="attack-presets">
+            <span class="presets-title">Пресеты:</span>
+            <button class="preset-btn" onclick="applyXssPreset('<script>alert(\'Hacked!\')</script>', 'alert')">Простой Alert</button>
+            <button class="preset-btn" onclick="applyXssPreset('<img src=x onerror=console.log(document.cookie)>', 'cookie')">Кража Cookie</button>
+            <button class="preset-btn" onclick="applyXssPreset('<div style=\'position:fixed;top:0;left:0;width:100%;height:100%;background:red;z-index:9999;opacity:0.5;pointer-events:none\'></div>', 'deface')">Deface</button>
+        </div>
 
-    <div class="search-section">
-        <input type="text" id="userId" placeholder="Введите ID пользователя или выберите атаку">
-        <button id="searchBtn" onclick="searchUser()">Запустить SQL</button>
-    </div>
+        <div id="xssHint" class="hint-card" style="display: none;">
+            <strong>💡 Анализ XSS-атаки:</strong>
+            <p id="xssHintContent"></p>
+        </div>
 
-    <div class="console-section">
-        <h4>Отправленный SQL-запрос:</h4>
-        <div id="queryLog" class="log">Ожидание действий...</div>
+        <div class="search-section">
+            <input type="text" id="guestName" placeholder="Имя автора" style="width: 25%;">
+            <input type="text" id="guestMsg" placeholder="Сообщение" style="width: 50%;">
+            <button class="main-btn" onclick="addComment()">📤 Отправить</button>
+            <button class="main-btn reset-btn" onclick="clearDatabase()">🗑️ Очистить</button>
+        </div>
 
-        <h4>Ответ от базы данных (JSON):</h4>
-        <div id="resultBox" class="result">Результаты появятся здесь...</div>
+        <h4>Гостевая книга:</h4>
+        <div id="commentsList">
+            </div>
     </div>
 
     <script>
-        const attackHints = {
-            'bypass': 'Механика: Добавление "OR 1=1" делает условие WHERE всегда истинным. БД игнорирует конкретный ID и возвращает все записи.',
-            'info': 'Механика: Оператор UNION склеивает основной запрос с системными функциями для извлечения метаданных (версия СУБД, пользователь).',
-            'tables': 'Механика: Запрос к "information_schema.tables" позволяет злоумышленнику узнать структуру всей базы данных.'
-        };
+        // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
+        function showTab(event, tabName) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tabName + '-tab').style.display = 'block';
+            event.currentTarget.classList.add('active');
 
-        // Темы
+            if(tabName === 'xss') loadComments();
+        }
+
+        // --- ТЕМНАЯ ТЕМА ---
         const themeToggle = document.getElementById('themeToggle');
         themeToggle.addEventListener('click', () => {
             const isDark = document.body.hasAttribute('data-theme');
@@ -61,35 +101,101 @@
             }
         });
 
-        // Пресеты
-        function applyPreset(queryValue, attackType) {
-            document.getElementById('userId').value = queryValue;
-            const display = document.getElementById('hintDisplay');
-            const content = document.getElementById('hintContent');
-            content.innerText = attackHints[attackType];
-            display.style.display = 'block';
+        // --- SQL ЛОГИКА ---
+        const sqlHints = {
+            'bypass': 'Механика: "OR 1=1" делает условие всегда истинным. База возвращает все строки таблицы.',
+            'info': 'Механика: UNION объединяет запрос к пользователям с системным вызовом version().',
+            'tables': 'Механика: Извлечение списка всех таблиц из метаданных (information_schema).'
+        };
+
+        function applySqlPreset(val, type) {
+            document.getElementById('userId').value = val;
+            document.getElementById('sqlHintContent').innerText = sqlHints[type];
+            document.getElementById('sqlHint').style.display = 'block';
         }
 
-        // Основная функция поиска
         async function searchUser() {
             const id = document.getElementById('userId').value;
             const isSafe = document.getElementById('safeMode').checked;
-            const url = `/user/${encodeURIComponent(id)}?safe=${isSafe}`;
+            const res = await fetch(`/user/${encodeURIComponent(id)}?safe=${isSafe}`);
+            const json = await res.json();
+            
+            const log = document.getElementById('queryLog');
+            log.innerText = json.executedQuery;
+            log.style.color = json.protected ? "var(--accent-color)" : "#ff4444";
+            
+            document.getElementById('resultBox').innerText = JSON.stringify(json.data || json.error, null, 2);
+        }
+
+        // --- XSS ЛОГИКА ---
+        const xssHints = {
+            'alert': 'Проверка на исполнение скрипта. Если вы видите окно alert, значит теги <script> не фильтруются.',
+            'cookie': 'Попытка чтения куки. В консоли браузера (F12) появится содержимое document.cookie.',
+            'deface': 'Скрипт накладывает полупрозрачный красный блок на весь экран через инлайн-стили.'
+        };
+
+        function applyXssPreset(val, type) {
+            document.getElementById('guestMsg').value = val;
+            document.getElementById('xssHintContent').innerText = xssHints[type];
+            document.getElementById('xssHint').style.display = 'block';
+        }
+
+        async function loadComments() {
+            try {
+                const res = await fetch('/comments');
+                const data = await res.json();
+                const list = document.getElementById('commentsList');
+                list.innerHTML = ''; 
+                
+                data.forEach(c => {
+                    const item = document.createElement('div');
+                    item.className = 'result comment-item';
+                    
+                    // Визуализация того, что в базе
+                    const rawContent = c.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    
+                    item.innerHTML = `
+                        <div class="comment-header"><strong>${c.author}</strong> пишет:</div>
+                        <div class="comment-body">${c.content}</div>
+                        <div class="raw-data-box">
+                            <small>🗄️ В базе данных (RAW):</small>
+                            <code>${rawContent}</code>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (e) {
+                console.error("Ошибка загрузки комментариев", e);
+            }
+        }
+
+        async function addComment() {
+            const author = document.getElementById('guestName').value || 'Аноним';
+            const content = document.getElementById('guestMsg').value;
+            if(!content) return;
+
+            await fetch('/comments', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ author, content })
+            });
+            
+            document.getElementById('guestMsg').value = '';
+            loadComments();
+        }
+
+        async function clearDatabase() {
+            if (!confirm("Очистить все сообщения (кроме приветственного)?")) return;
             
             try {
-                const res = await fetch(url);
-                const json = await res.json();
-
-                const logElement = document.getElementById('queryLog');
-                logElement.innerText = json.executedQuery || "Ошибка запроса";
-                
-                // Визуальная индикация защиты
-                logElement.style.color = json.protected ? "var(--accent-color)" : "#ff4444";
-                logElement.style.borderColor = json.protected ? "var(--accent-color)" : "#ff4444";
-
-                document.getElementById('resultBox').innerText = JSON.stringify(json.data || json.error, null, 2);
+                const res = await fetch('/comments/clear', { method: 'DELETE' });
+                const result = await res.json();
+                if(result.success) {
+                    loadComments();
+                    document.getElementById('xssHint').style.display = 'none';
+                }
             } catch (e) {
-                document.getElementById('resultBox').innerText = "Ошибка соединения с сервером";
+                alert("Ошибка при очистке базы");
             }
         }
     </script>
