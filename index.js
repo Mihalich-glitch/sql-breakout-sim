@@ -30,7 +30,7 @@ app.get('/user/:id', async (req, res) => {
   
   try {
     if (isSafe) {
-      // ✅ БЕЗОПАСНЫЙ ПОДХОД: Параметризованный запрос
+      // Параметризованный запрос
       // Мы передаем данные ОТДЕЛЬНО от команды SQL
       queryText = 'SELECT * FROM users WHERE id = $1';
       const result = await pool.query(queryText, [userId]);
@@ -41,7 +41,7 @@ app.get('/user/:id', async (req, res) => {
         protected: true
       });
     } else {
-      // ❌ УЯЗВИМЫЙ ПОДХОД: Конкатенация (склейка) строк
+      // Конкатенация (склейка) строк
       // Пользовательский ввод становится частью команды SQL
       queryText = `SELECT * FROM users WHERE id = ${userId}`;
       const result = await pool.query(queryText);
